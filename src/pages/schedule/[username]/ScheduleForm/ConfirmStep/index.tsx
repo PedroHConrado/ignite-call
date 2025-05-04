@@ -1,19 +1,30 @@
-import { Button, Text, TextArea, TextInput } from '@ignite-ui/react'
-import { CalendarBlank, Clock } from 'phosphor-react'
-import { ConfirmForm, FormActions, FormError, FormHeader } from './styles'
-import { z } from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Button, Text, TextArea, TextInput } from '@ignite-ui/react'
+import dayjs from 'dayjs'
+import { useRouter } from 'next/router'
+import { CalendarBlank, Clock } from 'phosphor-react'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { api } from '../../../../../lib/axios'
+import { ConfirmForm, FormActions, FormError, FormHeader } from './styles'
 
 const confirmFormSchema = z.object({
-  name: z.string().min(3, 'O nome precisa ter pelo menos 3 letras'),
+  name: z.string().min(3, { message: 'O nome precisa no mínimo 3 caracteres' }),
   email: z.string().email({ message: 'Digite um e-mail válido' }),
   observations: z.string().nullable(),
 })
 
 type ConfirmFormData = z.infer<typeof confirmFormSchema>
 
-export function ConfirmStep() {
+interface ConfirmStepProps {
+  schedulingDate: Date
+  onCancelConfirmation: () => void
+}
+
+export function ConfirmStep({
+  schedulingDate,
+  onCancelConfirmation,
+}: ConfirmStepProps) {
   const {
     register,
     handleSubmit,
@@ -22,32 +33,41 @@ export function ConfirmStep() {
     resolver: zodResolver(confirmFormSchema),
   })
 
-  function handleConfirmScheduling(data: ConfirmFormData) {
-    console.log(data)
+  const router = useRouter()
+  const username = String(router.query.username)
+
+  async function handleConfirmScheduling(data: ConfirmFormData) {
+    const { name, email, observations } = data
+
+    await api.post(`/users/${username}/schedule`, {
+      name,
+      email,
+      observations,
+      date: schedulingDate,
+    })
+
+    onCancelConfirmation()
   }
+
+  const describedDate = dayjs(schedulingDate).format('DD[ de ]MMMM[ de ]YYYY')
+  const describedTime = dayjs(schedulingDate).format('HH:mm[h]')
 
   return (
     <ConfirmForm as="form" onSubmit={handleSubmit(handleConfirmScheduling)}>
       <FormHeader>
         <Text>
           <CalendarBlank />
-          22 de Setembro de 2022
+          {describedDate}
         </Text>
         <Text>
           <Clock />
-          18:00h
+          {describedTime}
         </Text>
       </FormHeader>
 
       <label>
         <Text size="sm">Nome completo</Text>
-        <TextInput
-          crossOrigin={undefined}
-          onPointerEnterCapture={undefined}
-          onPointerLeaveCapture={undefined}
-          placeholder="Seu nome"
-          {...register('name')}
-        />
+        <TextInput placeholder="Seu nome" {...register('name')} />
         {errors.name && <FormError size="sm">{errors.name.message}</FormError>}
       </label>
 
@@ -64,17 +84,17 @@ export function ConfirmStep() {
       </label>
 
       <label>
-        <Text size="sm" {...register('observations')}>
-          Observações
-        </Text>
-        <TextArea />
+        <Text size="sm">Observações</Text>
+        <TextArea {...register('observations')} />
       </label>
 
       <FormActions>
-        <Button type="button" variant="tertiary" disabled={isSubmitting}>
+        <Button type="button" variant="tertiary" onClick={onCancelConfirmation}>
           Cancelar
         </Button>
-        <Button type="submit">Confirmar</Button>
+        <Button type="submit" disabled={isSubmitting}>
+          Confirmar
+        </Button>
       </FormActions>
     </ConfirmForm>
   )
